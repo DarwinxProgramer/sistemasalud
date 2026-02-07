@@ -1,0 +1,118 @@
+:root {
+  --primary-dark: #002d5a;
+  --input-height: 46px;
+}
+
+/* RESET GENERAL */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f4f7f6;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow-x: auto;
+}
+
+/* ENCABEZADOS EN AZUL MARINO */
+h1, h2, h3, h4, h5 {
+  color: var(--primary-dark);
+}
+
+/* CONTENEDOR DE CONTENIDO */
+.main-content {
+  flex: 1 1 0%;
+  min-width: 0;        /* PERMITE que el contenido pueda desbordarse */
+  overflow-x: auto;    
+  padding: 2.5rem;
+}
+
+/* TARJETAS / CONTENEDORES */
+.card, .table-responsive, .modal-content {
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* TABLA RESPONSIVA */
+.table-responsive {
+  display: block;        /* Asegura que el contenedor se comporte como bloque */
+  width: 100%;
+  overflow-x: auto;      /* Activa el scroll horizontal */
+  white-space: nowrap;   /* Evita que el texto de las celdas se rompa en dos líneas */
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive table {
+  width: 100%;
+  min-width: 1000px;     /* Esto obliga a la tabla a no achicarse menos de 1000px */
+}
+
+.table th, .table td {
+  padding: 16px !important;
+  white-space: nowrap !important;
+  vertical-align: middle;
+  font-size: 1rem;
+}
+
+/* UNIFORMIDAD DE INPUTS Y BOTONES */
+.form-control,
+.btn,
+.form-select {
+  height: var(--input-height) !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+}
+
+/* CORRECCIÓN PARA INPUT-GROUP */
+.input-group .form-control,
+.input-group .btn {
+  height: var(--input-height) !important;
+}
+
+/* PALETA AZUL MARINO */
+.bg-primary { background-color: var(--primary-dark) !important; }
+.btn-primary {
+  background-color: var(--primary-dark) !important;
+  border: none !important;
+}
+.text-primary { color: var(--primary-dark) !important; }
+
+/* BOTONES DE ACCIÓN EN TABLAS */
+.action-buttons {
+  display: flex;
+  gap: 15px;
+  flex-wrap: nowrap;        /* Nunca bajan de línea */
+  white-space: nowrap;      /* Refuerzo extra */
+}
+
+.action-buttons .btn {
+  flex: 0 0 auto;           /* No se encogen */
+}
+
+/* CAJA DE DATOS DEL PACIENTE (MODALES HCE/CONSULTAS) */
+.patient-info-box {
+  background-color: #e9ecef;
+  padding: 15px 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+/* MODALES GRANDES RESPONSIVOS */
+.modal-xl {
+  max-width: 90% !important;
+}
+
+@media (max-width: 768px) {
+  .modal-xl {
+    max-width: 95% !important;
+  }
+  /* ===== FIX SCROLL GLOBAL ===== */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  overflow-y: auto;
+}
+
+}

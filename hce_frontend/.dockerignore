@@ -1,0 +1,21 @@
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Ignorar archivos de entorno
+.env
+.env.local
+.env.production
+
+# Build de producción
+dist/
+
+# Ignorar subdirectorio legacy
+HceFrontend-main/
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log

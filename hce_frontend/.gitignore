@@ -1,0 +1,7 @@
+# Ignorar archivos de entorno
+.env
+.env.local
+.env.production
+
+# Build de producción
+dist/
