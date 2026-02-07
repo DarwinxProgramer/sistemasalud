@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # ========================================
+  # Base de Datos MySQL
+  # ========================================
+  mysql:
+    image: mysql:8.0
+    container_name: hce-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-hce_prueba2}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    volumes:
+      # Persistencia de datos
+      - mysql-data:/var/lib/mysql
+      # Inicializar BD con dump (solo primera vez)
+      - ./Dump20260127.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    networks:
+      - hce-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ========================================
+  # Backend Spring Boot
+  # ========================================
+  backend:
+    build:
+      context: ./backend-hce
+      dockerfile: Dockerfile
+    container_name: hce-backend
+    restart: unless-stopped
+    environment:
+      # Variables de base de datos
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-hce_prueba2}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+
+      # Spring profile (opcional)
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+
+      # Configuración JVM (para producción)
+      JAVA_OPTS: -Xms512m -Xmx1024m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - hce-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ========================================
+  # Frontend React + Vite + Nginx
+  # ========================================
+  frontend:
+    build:
+      context: ./hce_frontend
+      dockerfile: Dockerfile
+    container_name: hce-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - hce-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+# ========================================
+# Volúmenes persistentes
+# ========================================
+volumes:
+  mysql-data:
+    driver: local
+    name: hce-mysql-data
+
+# ========================================
+# Red interna
+# ========================================
+networks:
+  hce-network:
+    driver: bridge
+    name: hce-network
