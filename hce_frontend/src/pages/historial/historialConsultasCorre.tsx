@@ -75,42 +75,42 @@ export default function HistorialConsultas() {
 
     // --- CARGA DE DATOS ---
     useEffect(() => {
-      const cargarPaciente = async () => {
-        const lista = await obtenerPacientes();
-        const encontrado = lista.find((p: any) => String(p.cedula) === String(cedula));
-        
-        if (encontrado) {
-            setPacienteActual(encontrado);
-            // IMPORTANTE: Asegúrate de que 'historiaClinica' sea el nombre correcto del array en tu DB
-            const historia = encontrado.historiaClinica || [];
-            
-            if (historia.length > 0) {
-                // Tomamos la última consulta registrada
-                const ult = historia[historia.length - 1];
-                const peri = ult.antecedentes?.perinatales;
+        const cargarPaciente = async () => {
+            const lista = await obtenerPacientes();
+            const encontrado = lista.find((p: any) => String(p.cedula) === String(cedula));
 
-                if (peri) {
-                    // Actualizamos los estados individuales que recibe el Tab
-                    setProductoGestacion(peri.productoGestacion || "");
-                    setEdadGestacional(peri.edadGestacional || "");
-                    setViaParto(peri.viaParto || "");
-                    setPesoNacimiento(peri.pesoNacimiento || "");
-                    setTallaNacimiento(peri.tallaNacimiento || "");
-                    
-                    // Si apgar existe, lo seteamos, si no, mantenemos el default
-                    if (peri.apgar) setApgar(peri.apgar);
-                    
-                    // Complicaciones
-                    if (peri.checksComplicaciones) setChecksComplicaciones(peri.checksComplicaciones);
-                    setDescripcionComplicaciones(peri.descripcionComplicaciones || "");
+            if (encontrado) {
+                setPacienteActual(encontrado);
+                // IMPORTANTE: Asegúrate de que 'historiaClinica' sea el nombre correcto del array en tu DB
+                const historia = encontrado.historiaClinica || [];
+
+                if (historia.length > 0) {
+                    // Tomamos la última consulta registrada
+                    const ult = historia[historia.length - 1];
+                    const peri = ult.antecedentes?.perinatales;
+
+                    if (peri) {
+                        // Actualizamos los estados individuales que recibe el Tab
+                        setProductoGestacion(peri.productoGestacion || "");
+                        setEdadGestacional(peri.edadGestacional || "");
+                        setViaParto(peri.viaParto || "");
+                        setPesoNacimiento(peri.pesoNacimiento || "");
+                        setTallaNacimiento(peri.tallaNacimiento || "");
+
+                        // Si apgar existe, lo seteamos, si no, mantenemos el default
+                        if (peri.apgar) setApgar(peri.apgar);
+
+                        // Complicaciones
+                        if (peri.checksComplicaciones) setChecksComplicaciones(peri.checksComplicaciones);
+                        setDescripcionComplicaciones(peri.descripcionComplicaciones || "");
+                    }
+
+                    setBloquearAntecedentes(true);
+                } else {
+                    setBloquearAntecedentes(false);
                 }
-                
-                setBloquearAntecedentes(true);
-            } else {
-                setBloquearAntecedentes(false);
             }
-        }
-    };
+        };
         cargarPaciente();
 
         const consultaEdicion = location.state?.consultaAEditar;
@@ -137,7 +137,6 @@ export default function HistorialConsultas() {
     const zI = useMemo(() => obtenerZScore('IMC/Edad', parseFloat(resIMC.valor), edadM), [resIMC.valor, edadM]);
 
     const handleGuardar = async () => {
-      //  if (!diagnosticoPrincipal.cie10) { alert("Debe ingresar el diagnóstico principal."); setTabActiva('diagnostico'); return; }
         const consultaCompleta = {
             id: location.state?.consultaAEditar?.id || uuidv4(),
             fecha: new Date().toLocaleDateString(),
