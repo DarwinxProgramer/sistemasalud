@@ -2,6 +2,7 @@
 // Servicio de almacenamiento de pacientes usando IndexedDB (Dexie)
 
 import { db, dbHelpers } from '../db/db';
+export { dbHelpers };
 import type { Paciente } from '../models/Paciente';
 import { mapConsultaFrontendToBackend } from './consultaMapper';
 

@@ -9,7 +9,7 @@ import { SeccionAntecedentes } from './components/SeccionAntecedentes';
 import { TabsConsultaActual } from './components/TabsConsultaActual';
 
 // Servicios y utilidades
-import { obtenerPacientes, agregarConsulta, actualizarConsultaExistente } from "../../services/dbPacienteService";
+import { obtenerPacientes, agregarConsulta, actualizarConsultaExistente, dbHelpers } from "../../services/dbPacienteService";
 import { calcularIMC, obtenerZScore, calcularEdadMeses } from './medicaCalcular';
 
 export default function HistorialConsultas() {
@@ -136,25 +136,129 @@ export default function HistorialConsultas() {
     const zT = useMemo(() => obtenerZScore('Talla/Edad', parseFloat(signosVitales.talla), edadM), [signosVitales.talla, edadM]);
     const zI = useMemo(() => obtenerZScore('IMC/Edad', parseFloat(resIMC.valor), edadM), [resIMC.valor, edadM]);
 
-    const handleGuardar = async () => {
-        const consultaCompleta = {
-            id: location.state?.consultaAEditar?.id || uuidv4(),
-            fecha: new Date().toLocaleDateString(),
-            hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            motivo: motivoConsulta,
-            enfermedadActual,
-            antecedentes: {
+    // GUARDAR SOLO ANTECEDENTES (Primera consulta)
+    const handleGuardarAntecedentes = async () => {
+        console.log('[DEBUG] 🟦 Guardando solo antecedentes (primera consulta)...');
+
+        try {
+            if (!pacienteActual) {
+                alert('Error: No se encontró el paciente');
+                console.error('[ERROR] Paciente actual no existe');
+                return;
+            }
+
+            // Actualizar solo los antecedentes del paciente
+            const antecedentesActualizados = {
                 perinatales: { productoGestacion, edadGestacional, viaParto, pesoNacimiento, tallaNacimiento, apgar, checksComplicaciones, descripcionComplicaciones },
                 vacunacion: estadoVacunacion,
                 personales: { enfermedadesCronicas, hospitalizaciones, cirugias, alergias, familiares, descripcionCronicas },
                 desarrollo: { hitos: desarrollo, alimentacion }
-            },
-            examenFisico: { vitales: signosVitales, segmentario: examenSegmentario, evolucion: evolucionClinica, nutricion: { resIMC, zP, zT, zI } },
-            diagnostico: { principal: diagnosticoPrincipal, secundarios: diagnosticosSecundarios, estudios: estudiosSolicitados, resultados: resultadosExamenes, plan: { farmacologico: planFarmacologico, noFarmacologico: planNoFarmacologico }, pronostico, proximaCita, impresion: enfermedadActual }
-        };
+            };
 
-        let exito = location.state?.consultaAEditar ? await actualizarConsultaExistente(cedula!, consultaCompleta) : await agregarConsulta(cedula!, consultaCompleta);
-        if (exito) { alert("Consulta guardada exitosamente."); navigate("/pacientes/consulta"); }
+            console.log('[DEBUG] 📋 Antecedentes a guardar:', antecedentesActualizados);
+
+            pacienteActual.antecedentes = antecedentesActualizados;
+
+            // Importar dbHelpers dinámicamente para guardar
+            // const { dbHelpers } = await import('../../services/dbPacienteService'); // Already imported statically
+            await dbHelpers.savePaciente(pacienteActual);
+
+            console.log('[DEBUG] ✅ Antecedentes guardados exitosamente');
+            alert('Antecedentes guardados correctamente. Ahora puedes completar la consulta.');
+
+        } catch (error) {
+            console.error('[ERROR] ❌ Error guardando antecedentes:', error);
+            alert('Error al guardar antecedentes. Ver consola para detalles.');
+        }
+    };
+
+    // VALIDAR Y GUARDAR CONSULTA COMPLETA
+    const handleGuardarConsulta = async () => {
+        console.log('[DEBUG] 🟩 Iniciando validación y guardado de consulta...');
+
+        try {
+            // ========== VALIDACIONES ==========
+            const errores: string[] = [];
+
+            // 1. Validar Anamnesis
+            console.log('[DEBUG] 🔍 Validando Anamnesis...');
+            if (!motivoConsulta?.trim() && !enfermedadActual?.trim()) {
+                errores.push('Anamnesis: Debe ingresar al menos el motivo de consulta o la enfermedad actual');
+            }
+            console.log('[DEBUG] Motivo:', motivoConsulta, '| Enfermedad:', enfermedadActual);
+
+            // 2. Validar Examen Físico (al menos un signo vital)
+            console.log('[DEBUG] 🔍 Validando Examen Físico...');
+            const tieneSignosVitales = signosVitales.peso || signosVitales.talla ||
+                signosVitales.temperatura || signosVitales.fc ||
+                signosVitales.fr || signosVitales.spo2;
+
+            if (!tieneSignosVitales) {
+                errores.push('Examen Físico: Debe ingresar al menos un signo vital (peso, talla, temperatura, FC, FR o SpO2)');
+            }
+            console.log('[DEBUG] Signos Vitales:', signosVitales);
+
+            // 3. Validar Diagnóstico (al menos descripción o plan)
+            console.log('[DEBUG] 🔍 Validando Diagnóstico...');
+            const tieneDiagnostico = diagnosticoPrincipal.descripcion?.trim() ||
+                diagnosticoPrincipal.cie10?.trim();
+            const tienePlan = planFarmacologico.esquema?.trim() ||
+                planNoFarmacologico.otros?.trim() ||
+                Object.values(planNoFarmacologico).some(v => v === true);
+
+            if (!tieneDiagnostico && !tienePlan) {
+                errores.push('Diagnóstico: Debe ingresar diagnóstico o plan terapéutico');
+            }
+            console.log('[DEBUG] Diagnóstico:', diagnosticoPrincipal, '| Plan:', { planFarmacologico, planNoFarmacologico });
+
+            // Mostrar errores si existen
+            if (errores.length > 0) {
+                console.warn('[WARN] ⚠️ Errores de validación:', errores);
+                alert('Por favor complete los siguientes campos:\n\n' + errores.join('\n'));
+                return;
+            }
+
+            console.log('[DEBUG] ✅ Validaciones pasadas. Preparando consulta...');
+
+            // ========== CONSTRUIR CONSULTA ==========
+            const consultaCompleta = {
+                id: location.state?.consultaAEditar?.id || uuidv4(),
+                fecha: new Date().toLocaleDateString(),
+                hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                motivo: motivoConsulta,
+                enfermedadActual,
+                antecedentes: {
+                    perinatales: { productoGestacion, edadGestacional, viaParto, pesoNacimiento, tallaNacimiento, apgar, checksComplicaciones, descripcionComplicaciones },
+                    vacunacion: estadoVacunacion,
+                    personales: { enfermedadesCronicas, hospitalizaciones, cirugias, alergias, familiares, descripcionCronicas },
+                    desarrollo: { hitos: desarrollo, alimentacion }
+                },
+                examenFisico: { vitales: signosVitales, segmentario: examenSegmentario, evolucion: evolucionClinica, nutricion: { resIMC, zP, zT, zI } },
+                diagnostico: { principal: diagnosticoPrincipal, secundarios: diagnosticosSecundarios, estudios: estudiosSolicitados, resultados: resultadosExamenes, plan: { farmacologico: planFarmacologico, noFarmacologico: planNoFarmacologico }, pronostico, proximaCita, impresion: enfermedadActual }
+            };
+
+            console.log('[DEBUG] 📝 Consulta completa construida:', consultaCompleta);
+
+            // ========== GUARDAR CONSULTA ==========
+            console.log('[DEBUG] 💾 Llamando a agregarConsulta...');
+            let exito = location.state?.consultaAEditar
+                ? await actualizarConsultaExistente(cedula!, consultaCompleta)
+                : await agregarConsulta(cedula!, consultaCompleta);
+
+            if (exito) {
+                console.log('[DEBUG] ✅ Consulta guardada exitosamente');
+                alert('✅ Consulta guardada exitosamente.');
+                navigate('/pacientes/consulta');
+            } else {
+                console.error('[ERROR] ❌ agregarConsulta retornó false');
+                alert('Error al guardar la consulta. Por favor revise la consola.');
+            }
+
+        } catch (error) {
+            console.error('[ERROR] ❌ Excepción al guardar consulta:', error);
+            console.error('[ERROR] Stack trace:', (error as Error).stack);
+            alert('Error crítico al guardar consulta. Ver consola para detalles.');
+        }
     };
 
     return (
@@ -163,7 +267,7 @@ export default function HistorialConsultas() {
                 <h4 className="m-0 fw-bold"><i className="bi bi-file-earmark-medical me-2"></i>Nueva Historia Clínica</h4>
                 <div className="d-flex gap-2">
                     <button className="btn btn-light btn-sm fw-bold" onClick={() => navigate(-1)}>CANCELAR</button>
-                    <button className="btn btn-success btn-sm fw-bold shadow" onClick={handleGuardar}>GUARDAR TODO</button>
+                    <button className="btn btn-success btn-sm fw-bold shadow" onClick={handleGuardarAntecedentes}>GUARDAR TODO</button>
                 </div>
             </div>
 
@@ -184,7 +288,7 @@ export default function HistorialConsultas() {
                     tabActiva={tabActiva} setTabActiva={setTabActiva}
                     anamnesis={{ motivoConsulta, setMotivoConsulta, enfermedadActual, setEnfermedadActual }}
                     fisico={{ signosVitales, setSignosVitales, examenSegmentario, setExamenSegmentario, zP, zT, zI, resIMC, evolucionClinica, setEvolucionClinica, pacienteActual }}
-                    diagnostico={{ diagnosticoPrincipal, setDiagnosticoPrincipal, diagnosticosSecundarios, setDiagnosticosSecundarios, estudiosSolicitados, setEstudiosSolicitados, resultadosExamenes, setResultadosExamenes, planFarmacologico, setPlanFarmacologico, planNoFarmacologico, setPlanNoFarmacologico, pronostico, setPronostico, proximaCita, setProximaCita, handleGuardar }}
+                    diagnostico={{ diagnosticoPrincipal, setDiagnosticoPrincipal, diagnosticosSecundarios, setDiagnosticosSecundarios, estudiosSolicitados, setEstudiosSolicitados, resultadosExamenes, setResultadosExamenes, planFarmacologico, setPlanFarmacologico, planNoFarmacologico, setPlanNoFarmacologico, pronostico, setPronostico, proximaCita, setProximaCita, handleGuardar: handleGuardarConsulta }}
                 />
             </div>
         </div>
