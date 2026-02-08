@@ -20,7 +20,10 @@ public class ConsultaMapper {
             return null;
 
         Consulta entity = new Consulta();
-        // El idConsulta NO se setea (es AutoIncrement)
+
+        // --- ADICIÓN PARA OFFLINE ---
+        entity.setUuidOffline(dto.getUuidOffline()); // Agregado
+        // ---------------------------
 
         entity.setPaciente(paciente);
         entity.setFechaConsulta(dto.getFecha());
@@ -28,24 +31,22 @@ public class ConsultaMapper {
         entity.setMotivoConsulta(dto.getMotivo());
         entity.setEnfermedadActual(dto.getEnfermedadActual());
 
-        // Mapeo Crítico: DTO corto -> Entity largo
         entity.setPeso(dto.getPeso());
         entity.setTalla(dto.getTalla());
         entity.setTemperatura(dto.getTemperatura());
-        entity.setFrecuenciaCardiaca(dto.getFc()); // fc -> frecuenciaCardiaca
-        entity.setFrecuenciaRespiratoria(dto.getFr()); // fr -> frecuenciaRespiratoria
-        entity.setSaturacion(dto.getSpo2()); // spo2 -> saturacion
+        entity.setFrecuenciaCardiaca(dto.getFc());
+        entity.setFrecuenciaRespiratoria(dto.getFr());
+        entity.setSaturacion(dto.getSpo2());
 
         entity.setDiagnosticoPrincipal(dto.getDiagnosticoTexto());
         entity.setTipoDiagnostico(dto.getTipoDiagnostico());
-        entity.setUsuarioMedico(dto.getUsuario()); // usuario -> usuarioMedico
+        entity.setUsuarioMedico(dto.getUsuario());
 
-        // Manejo del JSON de backup (opcional)
         if (dto.getJsonCompleto() != null) {
             entity.setDatosCompletosJson(dto.getJsonCompleto().toString());
         }
 
-        // Mapear planes (con cascade)
+        // Mapear planes (TU CÓDIGO ORIGINAL SE MANTIENE INTACTO)
         if (dto.getListaPlan() != null && planMapper != null) {
             dto.getListaPlan().forEach(planDTO -> {
                 ec.gob.salud.hce.backend.entity.PlanTerapeutico plan = planMapper.toEntity(planDTO);
@@ -54,7 +55,7 @@ public class ConsultaMapper {
             });
         }
 
-        // Mapear estudios (con cascade)
+        // Mapear estudios (TU CÓDIGO ORIGINAL SE MANTIENE INTACTO)
         if (dto.getListaEstudios() != null && estudioMapper != null) {
             dto.getListaEstudios().forEach(estudioDTO -> {
                 ec.gob.salud.hce.backend.entity.EstudioLaboratorio estudio = estudioMapper.toEntity(estudioDTO);
@@ -68,7 +69,6 @@ public class ConsultaMapper {
 
     /**
      * De Base de Datos (Entity) a React (DTO)
-     * Version with mappers for complete data
      */
     public static ConsultaDTO toDto(Consulta entity,
             ec.gob.salud.hce.backend.mapper.PlanTerapeuticoMapper planMapper,
@@ -79,6 +79,10 @@ public class ConsultaMapper {
         ConsultaDTO dto = new ConsultaDTO();
         dto.setIdConsulta(entity.getIdConsulta());
         dto.setIdPaciente(entity.getPaciente() != null ? entity.getPaciente().getIdPaciente() : null);
+
+        // --- ADICIÓN PARA OFFLINE ---
+        dto.setUuidOffline(entity.getUuidOffline()); // Agregado
+        // ---------------------------
 
         dto.setFecha(entity.getFechaConsulta());
         dto.setHora(entity.getHoraConsulta());
@@ -96,14 +100,14 @@ public class ConsultaMapper {
         dto.setTipoDiagnostico(entity.getTipoDiagnostico());
         dto.setUsuario(entity.getUsuarioMedico());
 
-        // Mapear planes si están cargados
+        // Mapear planes (TU CÓDIGO ORIGINAL SE MANTIENE INTACTO)
         if (entity.getPlanes() != null && !entity.getPlanes().isEmpty() && planMapper != null) {
             dto.setListaPlan(entity.getPlanes().stream()
                     .map(planMapper::toDTO)
                     .collect(Collectors.toList()));
         }
 
-        // Mapear estudios si están cargados
+        // Mapear estudios (TU CÓDIGO ORIGINAL SE MANTIENE INTACTO)
         if (entity.getEstudios() != null && !entity.getEstudios().isEmpty() && estudioMapper != null) {
             dto.setListaEstudios(entity.getEstudios().stream()
                     .map(estudioMapper::toDTO)
@@ -113,9 +117,6 @@ public class ConsultaMapper {
         return dto;
     }
 
-    /**
-     * Versión sin mappers (backward compatibility)
-     */
     public static ConsultaDTO toDto(Consulta entity) {
         return toDto(entity, null, null);
     }

@@ -1,6 +1,5 @@
 // src/services/dbPacienteService.ts
 // Servicio de almacenamiento de pacientes usando IndexedDB (Dexie)
-// Reemplaza la lógica de localStorage de pacienteStorage.ts
 
 import { db, dbHelpers } from '../db/db';
 import type { Paciente } from '../models/Paciente';
@@ -17,7 +16,6 @@ export const obtenerPacientes = async (): Promise<Paciente[]> => {
  */
 export const guardarPacientes = async (pacientes: Paciente[]): Promise<void> => {
     await db.transaction('rw', db.pacientes, async () => {
-        // Limpiar tabla y reemplazar con nuevos datos
         await db.pacientes.clear();
         await db.pacientes.bulkAdd(pacientes);
     });
@@ -35,31 +33,24 @@ export const guardarPaciente = async (paciente: Paciente): Promise<void> => {
  * Lanza error si ya existe
  */
 export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
+    // 1. Verificamos si ya existe por cédula para no duplicar
     const existe = await dbHelpers.getPacienteByCedula(paciente.cedula);
     if (existe) {
         throw new Error('El paciente ya está registrado');
     }
 
-    console.log('[DEBUG] Paciente original:', paciente);
-    console.log('[DEBUG] Filiacion:', paciente.filiacion);
+    console.log('[DEBUG] Registrando paciente:', paciente.nombres);
 
     // --- MAPEO DE CATALOGOS (TEMPORAL) ---
     const mapaParroquias: Record<string, number> = {
-        "Tarqui": 120,
-        "El Vecino": 92,
-        "Baños": 103,
-        "Totoracocha": 100
-        // Agregar más según base de datos
+        "Tarqui": 120, "El Vecino": 92, "Baños": 103, "Totoracocha": 100
     };
 
     const mapaGruposEtnicos: Record<string, number> = {
-        "Mestizo": 15, // Asumiendo ID validado en base
-        "Blanco": 1,
-        "Indígena": 2,
-        "Afroecuatoriano": 3
+        "Mestizo": 15, "Blanco": 1, "Indígena": 2, "Afroecuatoriano": 3
     };
 
-    // Transformar datos de filiacion a TutorDTO que espera el backend
+    // Preparar objeto para el Backend (TutorDTO, etc)
     const pacienteParaBackend: any = {
         cedula: paciente.cedula,
         primerNombre: paciente.nombres?.split(' ')[0] || '',
@@ -69,14 +60,11 @@ export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
         fechaNacimiento: paciente.fechaNacimiento,
         sexo: paciente.sexo,
         tipoSangre: paciente.tipoSangre,
-        // Mapeo manual: Si 'paciente.grupoEtnico' es nombre, buscamos ID.
-        idGrupoEtnico: mapaGruposEtnicos[paciente.grupoEtnico] || null,
-        // Mapeo manual: Si 'paciente.parroquia' es nombre, buscamos ID.
-        idParroquia: mapaParroquias[paciente.parroquia] || null,
-        uuidOffline: paciente.uuidOffline || paciente.id
+        idGrupoEtnico: mapaGruposEtnicos[paciente.grupoEtnico] || 15, // Default Mestizo
+        idParroquia: mapaParroquias[paciente.parroquia] || 92, // Default El Vecino
+        uuidOffline: paciente.uuidOffline || paciente.id || self.crypto.randomUUID()
     };
 
-    // Si tiene datos de filiación, mapearlos a TutorDTO
     if (paciente.filiacion && paciente.filiacion.nombreResponsable) {
         const nombresCompletos = paciente.filiacion.nombreResponsable.split(' ');
         pacienteParaBackend.tutor = {
@@ -88,25 +76,22 @@ export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
             telefono: paciente.filiacion.telefonoContacto,
             nivelEducativo: paciente.filiacion.nivelEducativoResponsable,
             direccion: paciente.filiacion.domicilioActual,
-            idParroquia: mapaParroquias[paciente.filiacion.parroquia] || null
+            idParroquia: mapaParroquias[paciente.filiacion.parroquia] || 92
         };
-        console.log('[DEBUG] Tutor mapeado:', pacienteParaBackend.tutor);
-    } else {
-        console.warn('[DEBUG] NO HAY DATOS DE FILIACION!');
     }
 
-    console.log('[DEBUG] Paciente para backend:', JSON.stringify(pacienteParaBackend, null, 2));
-
+    // =========================================================================
+    // LÓGICA DE GUARDADO (FIX CRÍTICO AQUÍ)
+    // =========================================================================
+    
     if (navigator.onLine) {
-        // ONLINE: POST directo al backend
-        console.log('[DEBUG] ONLINE: Enviando POST directo al backend...');
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+        // --- ONLINE ---
+        console.log('[DEBUG] ONLINE: Enviando paciente al servidor...');
+        const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080/api';
 
-        const response = await fetch(`${API_BASE_URL}/api/sync/up`, {
+        const response = await fetch(`${API_BASE_URL}/sync/up`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 entity: 'paciente',
                 type: 'CREATE',
@@ -115,35 +100,52 @@ export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[DEBUG] ❌ Error del backend:', errorText);
-            throw new Error(`Error al guardar en servidor (${response.status}): ${errorText || response.statusText}`);
+            throw new Error(`Error backend: ${response.statusText}`);
         }
 
         const mappings = await response.json();
-        console.log('[DEBUG] ✅ Paciente guardado en backend exitosamente. Mapeos recibidos:', mappings);
+        console.log('[DEBUG] ✅ Guardado en Backend. Mapeos:', mappings);
 
-        // Actualizar ID local si el backend lo devuelve
+        // 1. Extraer el nuevo ID del servidor
+        let nuevoIdServer = null;
         if (mappings && Array.isArray(mappings)) {
-            const mapping = mappings.find((m: any) => m.uuidOffline === pacienteParaBackend.uuidOffline);
-            if (mapping && mapping.newId) {
-                paciente.idPaciente = mapping.newId;
-                console.log('[DEBUG] 🆔 ID asignado por backend:', mapping.newId);
-            }
+            const map = mappings.find((m: any) => m.uuidOffline === pacienteParaBackend.uuidOffline);
+            if (map && map.newId) nuevoIdServer = map.newId;
         }
 
-        // Guardar localmente DESPUÉS de confirmar que se guardó en el servidor
-        await dbHelpers.savePaciente(paciente);
+        // 2. ACTUALIZAR EL OBJETO LOCAL CON EL ID REAL
+        if (nuevoIdServer) {
+            paciente.id = nuevoIdServer;          // ID para Dexie (si es numérico)
+            paciente.idPaciente = nuevoIdServer;  // ID para tu lógica de negocio
+        }
+        
+        // 3. ¡IMPORTANTE! INICIALIZAR HISTORIA CLINICA VACÍA
+        // Esto evita que falle la consulta que vas a agregar justo después
+        paciente.historiaClinica = []; 
+        paciente.syncStatus = 'SYNCED';
+
+        // 4. GUARDAR EN INDEXEDDB (FORCE PUT)
+        // Usamos put para insertar o actualizar si ya existiera algo raro
+        await db.pacientes.put(paciente);
+        console.log(`[DEBUG] Paciente guardado localmente con ID: ${paciente.idPaciente}`);
+
     } else {
-        // OFFLINE: Guardar localmente y agregar a cola
-        console.log('[DEBUG] OFFLINE: Agregando a cola de sincronización...');
+        // --- OFFLINE ---
+        console.log('[DEBUG] OFFLINE: Guardando localmente...');
+        
+        // Aseguramos que tenga array
+        paciente.historiaClinica = [];
+        paciente.syncStatus = 'PENDING';
+        
+        // Guardamos paciente
         await dbHelpers.savePaciente(paciente);
+        
+        // Agregamos a cola
         await dbHelpers.addToSyncQueue({
             type: 'CREATE',
             entity: 'paciente',
             data: pacienteParaBackend
         });
-        console.log('[DEBUG] ✅ Paciente agregado a cola de sincronización');
     }
 };
 
@@ -157,33 +159,65 @@ export const buscarPacientePorCedula = async (cedula: string): Promise<Paciente 
 /**
  * Agregar una consulta nueva al historial de un paciente
  */
-export const agregarConsulta = async (cedula: string, nuevaConsulta: any): Promise<boolean> => {
+export const agregarConsulta = async (cedula: string, consultaFrontend: any): Promise<boolean> => {
+    // 1. Buscamos al paciente (Que ahora SÍ existirá gracias al fix de arriba)
     const paciente = await dbHelpers.getPacienteByCedula(cedula);
-
-    if (!paciente) return false;
-
-    // Inicializar historiaClinica si no existe
-    if (!paciente.historiaClinica) {
-        paciente.historiaClinica = [];
+    
+    if (!paciente) {
+        console.error(`[DEBUG] CRÍTICO: Paciente con cédula ${cedula} no encontrado en local.`);
+        return false;
     }
 
-    // Añadir la nueva consulta
-    paciente.historiaClinica.push(nuevaConsulta);
+    // 2. Inicialización defensiva (Por si acaso)
+    if (!paciente.historiaClinica) paciente.historiaClinica = [];
 
-    // Actualizar antecedentes globales
-    paciente.antecedentes = nuevaConsulta.antecedentes;
+    // 3. Preparar datos para sincronización
+    const consultaParaBackend = {
+        id_paciente: paciente.idPaciente, // Ahora sí tendrá el ID correcto (4, 5, etc.)
+        id_historia_clinica: paciente.idPaciente, 
+        motivo_consulta: consultaFrontend.motivo || consultaFrontend.motivoConsulta,
+        enfermedad_actual: consultaFrontend.enfermedadActual,
+        fecha_atencion: new Date().toISOString().split('T')[0],
+        hora_consulta: new Date().toLocaleTimeString('en-GB'),
+        peso: parseFloat(consultaFrontend.examenFisico?.vitales?.peso) || 0,
+        talla: parseFloat(consultaFrontend.examenFisico?.vitales?.talla) || 0,
+        temperatura: parseFloat(consultaFrontend.examenFisico?.vitales?.temperatura) || 0,
+        frecuencia_cardiaca: parseInt(consultaFrontend.examenFisico?.vitales?.fc) || 0,
+        frecuencia_respiratoria: parseInt(consultaFrontend.examenFisico?.vitales?.fr) || 0,
+        saturacion: parseInt(consultaFrontend.examenFisico?.vitales?.spo2) || 0,
+        diagnostico_principal: consultaFrontend.diagnostico?.principal?.descripcion || '',
+        tipo_diagnostico: consultaFrontend.diagnostico?.principal?.tipo || 'Presuntivo',
+        uuid_offline: consultaFrontend.id,
+        sync_status: 'PENDING',
+        datos_completos_json: JSON.stringify(consultaFrontend)
+    };
 
-    // Guardar cambios
-    await dbHelpers.savePaciente(paciente);
+    try {
+        // 4. Guardar en IndexedDB (Array local)
+        paciente.historiaClinica.push(consultaFrontend);
+        paciente.antecedentes = consultaFrontend.antecedentes; // Actualizar ficha
+        
+        await dbHelpers.savePaciente(paciente);
+        console.log('[DEBUG] Consulta guardada en IndexedDB.');
 
-    // Agregar a cola de sincronización
-    await dbHelpers.addToSyncQueue({
-        type: 'UPDATE',
-        entity: 'consulta',
-        data: { cedula, consulta: nuevaConsulta }
-    });
+        // 5. Cola de sincronización
+        await dbHelpers.addToSyncQueue({
+            type: 'CREATE',
+            entity: 'consulta',
+            data: consultaParaBackend
+        });
 
-    return true;
+        // 6. Intentar subir inmediatamente si hay internet
+        if (navigator.onLine) {
+            // Importación dinámica para evitar ciclos
+            import('./syncService').then(m => m.syncService.syncUp().catch(err => console.error(err)));
+        }
+
+        return true;
+    } catch (error) {
+        console.error('[DEBUG] Error al guardar consulta:', error);
+        return false;
+    }
 };
 
 /**
@@ -200,14 +234,10 @@ export const actualizarConsultaExistente = async (cedula: string, consultaEditad
 
     // Reemplazar consulta
     paciente.historiaClinica[consultaIndex] = consultaEditada;
-
-    // Actualizar antecedentes globales
     paciente.antecedentes = consultaEditada.antecedentes;
 
-    // Guardar cambios
     await dbHelpers.savePaciente(paciente);
 
-    // Agregar a cola de sincronización
     await dbHelpers.addToSyncQueue({
         type: 'UPDATE',
         entity: 'consulta',

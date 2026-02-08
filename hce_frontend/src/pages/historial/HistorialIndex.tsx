@@ -64,7 +64,7 @@ export default function HistorialIndex() {
                                         {p.historiaClinica?.length || 0} Consultas registradas
                                     </small>
                                 </div>
-                                <button className="btn btn-outline-primary btn-sm ms-2" onClick={() => navigate(`/historial-completo/${p.cedula}`)}>
+                                <button className="btn btn-outline-primary btn-sm ms-2" onClick={() => navigate(`/reporte-hce/${p.cedula}`)}>
                                     <i className="bi bi-eye-fill"></i>
                                 </button>
                             </div>

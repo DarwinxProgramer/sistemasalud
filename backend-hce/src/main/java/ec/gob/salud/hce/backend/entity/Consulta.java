@@ -76,6 +76,18 @@ public class Consulta {
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 
+    @Column(name = "uuid_offline")
+    private String uuidOffline;
+
+    @Column(name = "sync_status")
+    private String syncStatus;
+
+    @Column(name = "last_modified")
+    private LocalDateTime lastModified;
+
+    @Column(name = "origin")
+    private String origin;
+
     @PrePersist
     protected void onCreate() {
         this.fechaCreacion = LocalDateTime.now();

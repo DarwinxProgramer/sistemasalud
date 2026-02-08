@@ -9,10 +9,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     @Override
-    public void addCorsMappings(@NonNull CorsRegistry registry) { // @NonNull corrige la advertencia
-        registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:5173", "http://localhost")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+    public void addCorsMappings(@NonNull CorsRegistry registry) {
+        registry.addMapping("/**") // Esto cubre /api/pacientes, /api/consultas, TODO.
+                .allowedOriginPatterns("*") // Permite cualquier origen con credenciales
+                .allowedMethods("*") // Permite GET, POST, PUT, DELETE, etc.
                 .allowedHeaders("*")
                 .allowCredentials(true);
     }

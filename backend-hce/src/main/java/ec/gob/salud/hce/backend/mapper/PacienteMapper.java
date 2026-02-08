@@ -2,6 +2,7 @@ package ec.gob.salud.hce.backend.mapper;
 
 import ec.gob.salud.hce.backend.dto.PacienteRequestDTO;
 import ec.gob.salud.hce.backend.dto.PacienteResponseDTO;
+import ec.gob.salud.hce.backend.entity.HistoriaClinica;
 import ec.gob.salud.hce.backend.entity.Paciente;
 import ec.gob.salud.hce.backend.entity.PacienteTutor;
 import org.springframework.stereotype.Component;
@@ -27,33 +28,39 @@ public class PacienteMapper {
         dto.setSexo(entity.getSexo());
         dto.setTipoSangre(entity.getTipoSangre());
 
-        // --- CORRECCIÓN: ASIGNACIÓN DIRECTA DE IDs ---
-        // Antes: dto.setIdGrupoEtnico(entity.getGrupoEtnico().getId());
-        // Ahora: entity.getIdGrupoEtnico() ya devuelve el Integer
-        dto.setIdGrupoEtnico(entity.getIdGrupoEtnico());
-
-        // Antes: dto.setIdParroquia(entity.getParroquia().getId());
         dto.setIdParroquia(entity.getIdParroquia());
-
         dto.setIdPrqCanton(entity.getIdPrqCanton());
         dto.setIdPrqCntProvincia(entity.getIdPrqCntProvincia());
 
-        // Auditoría
-        dto.setUsuario(entity.getUsuario());
-        dto.setUuidOffline(entity.getUuidOffline());
-        dto.setSyncStatus(entity.getSyncStatus());
-        dto.setLastModified(entity.getLastModified());
-        dto.setOrigin(entity.getOrigin());
-        dto.setIdPersonal(entity.getIdPersonal());
+        // ===============================
+        // 🔥 DATOS QUE AHORA ESTÁN EN HISTORIA CLÍNICA
+        // ===============================
 
-        // Mapear tutor si existe relación
+        HistoriaClinica historia = entity.getHistoriaClinica();
+
+        if (historia != null) {
+            dto.setIdGrupoEtnico(historia.getIdGrupoEtnico());
+            dto.setUsuario(historia.getUsuario());
+            dto.setUuidOffline(historia.getUuidOffline());
+            dto.setSyncStatus(historia.getSyncStatus());
+            dto.setLastModified(historia.getLastModified());
+            dto.setOrigin(historia.getOrigin());
+            dto.setIdPersonal(historia.getIdPersonal());
+        }
+
+        // ===============================
+        // MAPEAR TUTOR
+        // ===============================
+
         if (entity.getPacientesTutores() != null && !entity.getPacientesTutores().isEmpty()) {
-            // Tomar el primer tutor (asumiendo un paciente tiene un tutor principal)
+
             PacienteTutor pt = entity.getPacientesTutores().get(0);
+
             if (pt.getTutor() != null) {
-                // Necesitamos TutorMapper inyectado
                 ec.gob.salud.hce.backend.mapper.TutorMapper tutorMapper = new ec.gob.salud.hce.backend.mapper.TutorMapper();
+
                 ec.gob.salud.hce.backend.dto.TutorDTO tutorDTO = tutorMapper.toDTO(pt.getTutor());
+
                 tutorDTO.setParentesco(pt.getParentesco());
                 dto.setTutor(tutorDTO);
             }
@@ -70,7 +77,6 @@ public class PacienteMapper {
 
         Paciente entity = new Paciente();
 
-        // Si es actualización, setearíamos el ID aquí
         if (dto.getIdPaciente() != null) {
             entity.setIdPaciente(dto.getIdPaciente());
         }
@@ -84,21 +90,13 @@ public class PacienteMapper {
         entity.setSexo(dto.getSexo());
         entity.setTipoSangre(dto.getTipoSangre());
 
-        // --- CORRECCIÓN: ASIGNACIÓN DIRECTA DE IDs ---
-        // Ya no necesitamos crear objetos 'new GrupoEtnico()' o 'new Parroquia()'
-        // Solo pasamos el número entero.
-
-        entity.setIdGrupoEtnico(dto.getIdGrupoEtnico());
         entity.setIdParroquia(dto.getIdParroquia());
-
         entity.setIdPrqCanton(dto.getIdPrqCanton());
         entity.setIdPrqCntProvincia(dto.getIdPrqCntProvincia());
 
-        // Auditoría básica desde el DTO si viene
-        entity.setUsuario(dto.getUsuario());
-        entity.setUuidOffline(dto.getUuidOffline());
-        entity.setOrigin(dto.getOrigin());
-        entity.setIdPersonal(dto.getIdPersonal());
+        // 🔥 IMPORTANTE:
+        // Los datos clínicos NO se setean aquí.
+        // Se deben setear en el Service creando o actualizando HistoriaClinica.
 
         return entity;
     }
