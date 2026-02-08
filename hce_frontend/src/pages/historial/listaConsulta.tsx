@@ -36,16 +36,16 @@ const ListaConsultasHistorial: React.FC<Props> = ({
                   <span className="fw-bold small text-muted">{hist.fecha}</span>
                   <div className="d-flex gap-2">
                     {/* Botón Ojo: Ver Expediente */}
-                    <button 
-                      className="btn btn-sm btn-outline-info p-1 lh-1" 
+                    <button
+                      className="btn btn-sm btn-outline-info p-1 lh-1"
                       title="Ver Expediente"
                       onClick={() => onVerExpediente(hist)}
                     >
                       <i className="bi bi-eye-fill"></i>
                     </button>
                     {/* Botón Lápiz: Editar */}
-                    <button 
-                      className="btn btn-sm btn-outline-warning p-1 lh-1" 
+                    <button
+                      className="btn btn-sm btn-outline-warning p-1 lh-1"
                       title="Editar Consulta"
                       onClick={() => onEditarConsulta(hist)}
                     >
@@ -54,7 +54,7 @@ const ListaConsultasHistorial: React.FC<Props> = ({
                   </div>
                 </div>
                 <strong className="d-block text-dark small text-truncate">
-                  {hist.anamnesis?.motivoConsulta || "Sin motivo"}
+                  {hist.motivoConsulta || hist.motivo || "Sin motivo"}
                 </strong>
               </div>
             </div>

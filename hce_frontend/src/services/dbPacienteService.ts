@@ -3,6 +3,7 @@
 
 import { db, dbHelpers } from '../db/db';
 import type { Paciente } from '../models/Paciente';
+import { mapConsultaFrontendToBackend } from './consultaMapper';
 
 /**
  * Obtener todos los pacientes desde IndexedDB
@@ -83,7 +84,7 @@ export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
     // =========================================================================
     // LÓGICA DE GUARDADO (FIX CRÍTICO AQUÍ)
     // =========================================================================
-    
+
     if (navigator.onLine) {
         // --- ONLINE ---
         console.log('[DEBUG] ONLINE: Enviando paciente al servidor...');
@@ -118,10 +119,10 @@ export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
             paciente.id = nuevoIdServer;          // ID para Dexie (si es numérico)
             paciente.idPaciente = nuevoIdServer;  // ID para tu lógica de negocio
         }
-        
+
         // 3. ¡IMPORTANTE! INICIALIZAR HISTORIA CLINICA VACÍA
         // Esto evita que falle la consulta que vas a agregar justo después
-        paciente.historiaClinica = []; 
+        paciente.historiaClinica = [];
         paciente.syncStatus = 'SYNCED';
 
         // 4. GUARDAR EN INDEXEDDB (FORCE PUT)
@@ -132,14 +133,14 @@ export const registrarPaciente = async (paciente: Paciente): Promise<void> => {
     } else {
         // --- OFFLINE ---
         console.log('[DEBUG] OFFLINE: Guardando localmente...');
-        
+
         // Aseguramos que tenga array
         paciente.historiaClinica = [];
         paciente.syncStatus = 'PENDING';
-        
+
         // Guardamos paciente
         await dbHelpers.savePaciente(paciente);
-        
+
         // Agregamos a cola
         await dbHelpers.addToSyncQueue({
             type: 'CREATE',
@@ -162,7 +163,7 @@ export const buscarPacientePorCedula = async (cedula: string): Promise<Paciente 
 export const agregarConsulta = async (cedula: string, consultaFrontend: any): Promise<boolean> => {
     // 1. Buscamos al paciente (Que ahora SÍ existirá gracias al fix de arriba)
     const paciente = await dbHelpers.getPacienteByCedula(cedula);
-    
+
     if (!paciente) {
         console.error(`[DEBUG] CRÍTICO: Paciente con cédula ${cedula} no encontrado en local.`);
         return false;
@@ -171,32 +172,25 @@ export const agregarConsulta = async (cedula: string, consultaFrontend: any): Pr
     // 2. Inicialización defensiva (Por si acaso)
     if (!paciente.historiaClinica) paciente.historiaClinica = [];
 
-    // 3. Preparar datos para sincronización
-    const consultaParaBackend = {
-        id_paciente: paciente.idPaciente, // Ahora sí tendrá el ID correcto (4, 5, etc.)
-        id_historia_clinica: paciente.idPaciente, 
-        motivo_consulta: consultaFrontend.motivo || consultaFrontend.motivoConsulta,
-        enfermedad_actual: consultaFrontend.enfermedadActual,
-        fecha_atencion: new Date().toISOString().split('T')[0],
-        hora_consulta: new Date().toLocaleTimeString('en-GB'),
-        peso: parseFloat(consultaFrontend.examenFisico?.vitales?.peso) || 0,
-        talla: parseFloat(consultaFrontend.examenFisico?.vitales?.talla) || 0,
-        temperatura: parseFloat(consultaFrontend.examenFisico?.vitales?.temperatura) || 0,
-        frecuencia_cardiaca: parseInt(consultaFrontend.examenFisico?.vitales?.fc) || 0,
-        frecuencia_respiratoria: parseInt(consultaFrontend.examenFisico?.vitales?.fr) || 0,
-        saturacion: parseInt(consultaFrontend.examenFisico?.vitales?.spo2) || 0,
-        diagnostico_principal: consultaFrontend.diagnostico?.principal?.descripcion || '',
-        tipo_diagnostico: consultaFrontend.diagnostico?.principal?.tipo || 'Presuntivo',
-        uuid_offline: consultaFrontend.id,
-        sync_status: 'PENDING',
-        datos_completos_json: JSON.stringify(consultaFrontend)
-    };
+    // 3. Validar que el paciente tenga ID
+    if (!paciente.idPaciente) {
+        console.error('[ERROR] Paciente sin ID, no se puede guardar consulta');
+        return false;
+    }
+
+    // 4. Preparar datos usando el mapper bidireccional
+    const consultaParaBackend = mapConsultaFrontendToBackend(
+        consultaFrontend,
+        paciente.idPaciente
+    );
+
+    console.log('[DEBUG] Consulta mapeada para backend:', consultaParaBackend);
 
     try {
-        // 4. Guardar en IndexedDB (Array local)
+        // 5. Guardar en IndexedDB (Array local)
         paciente.historiaClinica.push(consultaFrontend);
         paciente.antecedentes = consultaFrontend.antecedentes; // Actualizar ficha
-        
+
         await dbHelpers.savePaciente(paciente);
         console.log('[DEBUG] Consulta guardada en IndexedDB.');
 

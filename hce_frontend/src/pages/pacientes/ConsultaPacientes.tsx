@@ -95,8 +95,15 @@ export default function ConsultaPacientes() {
                         </button>
                       </div>
                       <div className="card-body py-2">
-                        <p className="mb-1 small"><strong>Motivo:</strong> {c.motivo}</p>
-                        <p className="mb-0 small text-muted"><strong>Diagnóstico:</strong> {c.diagnostico?.principal?.descripcion || "—"}</p>
+                        <p className="mb-1 small"><strong>Motivo:</strong> {c.motivoConsulta || c.motivo || "—"}</p>
+                        <p className="mb-0 small text-muted">
+                          <strong>Diagnóstico:</strong> {
+                            c.diagnosticoTexto ||
+                            c.diagnostico?.principal?.descripcion ||
+                            c.diagnostico?.texto ||
+                            "—"
+                          }
+                        </p>
                       </div>
                     </div>
                   ))
