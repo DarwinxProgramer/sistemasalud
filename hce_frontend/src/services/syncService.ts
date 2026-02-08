@@ -98,14 +98,17 @@ class SyncService {
                         };
                     }
 
+                    // Crear objeto sin los campos originales de nombres/apellidos
+                    const { primerNombre, segundoNombre, apellidoPaterno, apellidoMaterno, ...restoPaciente } = p;
+
                     return {
-                        ...p,
+                        ...restoPaciente,
                         id: p.idPaciente, // ID Dexie = ID Backend
                         cedula: p.cedula,
-                        nombres,
-                        apellidos,
+                        nombres,            // Nombres unidos
+                        apellidos,          // Apellidos unidos
                         filiacion,
-                        historiaClinica: p.historiaClinica || [], 
+                        historiaClinica: p.historiaClinica || [],
                         uuidOffline: p.uuidOffline || self.crypto.randomUUID()
                     };
                 });
@@ -136,11 +139,11 @@ class SyncService {
 
                     if (paciente) {
                         if (!paciente.historiaClinica) paciente.historiaClinica = [];
-                        
+
                         const consultaFrontend = mapConsultaBackendToFrontend(consultaBackend);
-                        
+
                         // Evitar duplicados
-                        const existe = paciente.historiaClinica.some((c: any) => 
+                        const existe = paciente.historiaClinica.some((c: any) =>
                             c.id === consultaFrontend.id || c.id === consultaBackend.uuidOffline
                         );
 
