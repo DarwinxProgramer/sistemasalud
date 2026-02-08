@@ -72,6 +72,9 @@ services:
       dockerfile: Dockerfile
     container_name: hce-frontend
     restart: unless-stopped
+    volumes:
+      - ./hce_frontend:/app
+      - /app/node_modules
     depends_on:
       backend:
         condition: service_healthy
@@ -79,6 +82,7 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     networks:
       - hce-network
+    # healthcheck ajustado para desarrollo
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/" ]
       interval: 30s
@@ -93,6 +97,10 @@ volumes:
   mysql-data:
     driver: local
     name: hce-mysql-data
+  maven-repo:
+    # Caché de dependencias Maven
+    driver: local
+    name: hce-maven-repo
 
 # ========================================
 # Red interna

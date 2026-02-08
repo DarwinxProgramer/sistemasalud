@@ -8,7 +8,7 @@ import type { Paciente } from '../models/Paciente';
 export interface SyncQueueItem {
     id?: number;
     type: 'CREATE' | 'UPDATE' | 'DELETE';
-    entity: 'paciente' | 'consulta' | 'antecedente';
+    entity: 'paciente' | 'consulta' | 'antecedente' | 'antecedente-perinatal';
     data: any;
     timestamp: number;
     synced: number; // 0 = false, 1 = true (Dexie no puede indexar booleanos)

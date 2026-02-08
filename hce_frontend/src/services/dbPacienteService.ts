@@ -241,3 +241,94 @@ export const actualizarConsultaExistente = async (cedula: string, consultaEditad
 
     return true;
 };
+
+/**
+ * Actualizar datos del paciente (incluyendo antecedentes) y sincronizar
+ */
+export const actualizarPaciente = async (paciente: Paciente): Promise<boolean> => {
+    try {
+        // 1. Guardar localmente
+        await dbHelpers.savePaciente(paciente);
+        console.log('[DEBUG] Paciente actualizado localmente:', paciente.cedula);
+
+        // 2. Preparar datos para backend (Mapeo inverso)
+        // Nota: Reutilizamos lógica simplificada de registrarPaciente
+        const mapaParroquias: Record<string, number> = { "Tarqui": 120, "El Vecino": 92, "Baños": 103, "Totoracocha": 100 };
+        const mapaGruposEtnicos: Record<string, number> = { "Mestizo": 15, "Blanco": 1, "Indígena": 2, "Afroecuatoriano": 3 };
+
+        const pacienteParaBackend: any = {
+            idPaciente: paciente.idPaciente, // Importante para updates
+            cedula: paciente.cedula,
+            primerNombre: paciente.nombres?.split(' ')[0] || '',
+            segundoNombre: paciente.nombres?.split(' ')[1] || '',
+            apellidoPaterno: paciente.apellidos?.split(' ')[0] || '',
+            apellidoMaterno: paciente.apellidos?.split(' ')[1] || '',
+            fechaNacimiento: paciente.fechaNacimiento,
+            sexo: paciente.sexo,
+            tipoSangre: paciente.tipoSangre,
+            idGrupoEtnico: mapaGruposEtnicos[paciente.grupoEtnico] || 15,
+            idParroquia: mapaParroquias[paciente.parroquia] || 92,
+            uuidOffline: paciente.uuidOffline,
+            antecedentes: paciente.antecedentes // Enviamos antecedentes si el backend lo soporta
+        };
+
+        if (paciente.filiacion && paciente.filiacion.nombreResponsable) {
+            const partes = paciente.filiacion.nombreResponsable.split(' ');
+            pacienteParaBackend.tutor = {
+                primerNombre: partes[0] || '',
+                segundoNombre: partes[1] || '',
+                primerApellido: partes[2] || '',
+                segundoApellido: partes[3] || '',
+                parentesco: paciente.filiacion.parentesco,
+                telefono: paciente.filiacion.telefonoContacto,
+                nivelEducativo: paciente.filiacion.nivelEducativoResponsable,
+                direccion: paciente.filiacion.domicilioActual,
+                idParroquia: mapaParroquias[paciente.filiacion.parroquia] || 92
+            };
+        }
+
+        // 3. Cola de sincronización (PACIENTE)
+        await dbHelpers.addToSyncQueue({
+            type: 'UPDATE', // Siempre update porque ya existe localmente
+            entity: 'paciente',
+            data: pacienteParaBackend
+        });
+
+        // ---------------------------------------------------------
+        // 4. SINCRONIZAR ANTECEDENTES PERINATALES (SI EXISTEN)
+        // ---------------------------------------------------------
+        if (paciente.antecedentes?.perinatales) {
+            const ap = paciente.antecedentes.perinatales;
+
+            // Mapear al DTO del backend (AntecedentePerinatalDTO)
+            const perinatalDTO = {
+                idPaciente: paciente.idPaciente,
+                embarazoPlanificado: false, // Default
+                controlesPrenatales: 0,     // Default
+                antecedentes: `Gesta: ${ap.productoGestacion}, Semanas: ${ap.edadGestacional}, Parto: ${ap.viaParto}`,
+                otrosAntecedentes: `Peso: ${ap.pesoNacimiento}, Talla: ${ap.tallaNacimiento}, APGAR: ${JSON.stringify(ap.apgar)}, Compl: ${JSON.stringify(ap.checksComplicaciones)}`,
+                usuario: 'medico1',
+                uuidOffline: crypto.randomUUID(), // Generar nuevo UUID para el antecedente
+                origin: 'MOBILE'
+            };
+
+            console.log('[DEBUG] Encolando antecedente perinatal:', perinatalDTO);
+
+            await dbHelpers.addToSyncQueue({
+                type: 'CREATE',
+                entity: 'antecedente-perinatal',
+                data: perinatalDTO
+            });
+        }
+
+        // 5. Intentar subir inmediatamente si hay internet
+        if (navigator.onLine) {
+            import('./syncService').then(m => m.syncService.syncUp().catch(err => console.error(err)));
+        }
+
+        return true;
+    } catch (error) {
+        console.error('[ERROR] Falló actualizarPaciente:', error);
+        return false;
+    }
+};

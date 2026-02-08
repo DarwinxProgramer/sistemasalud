@@ -192,6 +192,8 @@ class SyncService {
 
             for (const item of pendingItems) {
                 try {
+                    console.log(`[Sync] Enviando item ${item.id} (${item.entity}):`, item.data);
+
                     const response = await fetch(`${API_BASE_URL}/sync/up`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -199,7 +201,10 @@ class SyncService {
                     });
 
                     if (response.ok) {
+                        console.log(`[Sync] ✅ Éxito para item ${item.id}`);
                         const mappings = await response.json();
+                        // ... (resto de lógica de mappings)
+
 
                         if (mappings && Array.isArray(mappings)) {
                             for (const map of mappings) {
@@ -229,10 +234,14 @@ class SyncService {
 
                         await dbHelpers.markAsSynced(item.id!);
                         syncedCount++;
+                    } else {
+                        const errorText = await response.text();
+                        console.error(`[Sync] ❌ Error servidor (${response.status}):`, errorText);
+                        throw new Error(`Server returned ${response.status}: ${errorText}`);
                     }
                 } catch (error) {
-                    console.error(`[SyncService] Error item ${item.id}:`, error);
-                    await (db as any).syncQueue.update(item.id!, { retries: (item.retries || 0) + 1 });
+                    console.error(`[Sync] Error item ${item.id}:`, error);
+                    // await (db as any).syncQueue.update(item.id!, { retries: (item.retries || 0) + 1 });
                 }
             }
 
@@ -280,3 +289,4 @@ class SyncService {
 }
 
 export const syncService = new SyncService();
+syncService.initAutoSync();

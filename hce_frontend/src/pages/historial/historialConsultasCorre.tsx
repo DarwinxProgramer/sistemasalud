@@ -9,7 +9,7 @@ import { SeccionAntecedentes } from './components/SeccionAntecedentes';
 import { TabsConsultaActual } from './components/TabsConsultaActual';
 
 // Servicios y utilidades
-import { obtenerPacientes, agregarConsulta, actualizarConsultaExistente, dbHelpers } from "../../services/dbPacienteService";
+import { obtenerPacientes, agregarConsulta, actualizarConsultaExistente, actualizarPaciente, dbHelpers } from "../../services/dbPacienteService";
 import { calcularIMC, obtenerZScore, calcularEdadMeses } from './medicaCalcular';
 
 export default function HistorialConsultas() {
@@ -161,10 +161,15 @@ export default function HistorialConsultas() {
 
             // Importar dbHelpers dinámicamente para guardar
             // const { dbHelpers } = await import('../../services/dbPacienteService'); // Already imported statically
-            await dbHelpers.savePaciente(pacienteActual);
+            // Usar la nueva función que guarda y sincroniza
+            const resultado = await actualizarPaciente(pacienteActual);
 
-            console.log('[DEBUG] ✅ Antecedentes guardados exitosamente');
-            alert('Antecedentes guardados correctamente. Ahora puedes completar la consulta.');
+            if (resultado) {
+                console.log('[DEBUG] ✅ Antecedentes guardados y encolados para sync');
+                alert('Antecedentes guardados y sincronizados correctamente. Ahora puedes completar la consulta.');
+            } else {
+                throw new Error('Falló actualizarPaciente');
+            }
 
         } catch (error) {
             console.error('[ERROR] ❌ Error guardando antecedentes:', error);

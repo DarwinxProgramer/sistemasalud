@@ -47,6 +47,9 @@ public class SyncService {
     // --------------------------------------
 
     @Autowired
+    private ec.gob.salud.hce.backend.repository.AntecedentePerinatalRepository antecedentePerinatalRepository;
+
+    @Autowired
     private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -141,6 +144,39 @@ public class SyncService {
                 }
             }
             // ---------------------------------------------
+
+            // --- NUEVA LÓGICA PARA ANTECEDENTES PERINATALES ---
+            else if ("antecedente-perinatal".equalsIgnoreCase(request.getEntity())) {
+                ec.gob.salud.hce.backend.dto.AntecedentePerinatalDTO dto = objectMapper.convertValue(request.getData(),
+                        ec.gob.salud.hce.backend.dto.AntecedentePerinatalDTO.class);
+
+                // Buscar si ya existe por UUID
+                ec.gob.salud.hce.backend.entity.AntecedentePerinatal existente = null;
+                // (Asumiendo que repository tiene este método, si no, lo guardamos directo)
+                // Para MVP, guardamos directo actualizando si tiene ID
+
+                ec.gob.salud.hce.backend.entity.AntecedentePerinatal entity = ec.gob.salud.hce.backend.mapper.AntecedentePerinatalMapper
+                        .toEntity(dto);
+
+                // Asegurar relaciones
+                if (dto.getIdPaciente() != null) {
+                    ec.gob.salud.hce.backend.entity.Paciente p = new ec.gob.salud.hce.backend.entity.Paciente();
+                    p.setIdPaciente(dto.getIdPaciente());
+                    entity.setPaciente(p);
+                }
+
+                // Save
+                // Usamos el repositorio inyectado directamente
+                ec.gob.salud.hce.backend.entity.AntecedentePerinatal guardado = antecedentePerinatalRepository
+                        .save(entity);
+
+                if (guardado.getUuidOffline() != null) {
+                    mappings.add(new IdMappingDTO(
+                            guardado.getUuidOffline(),
+                            guardado.getIdAntecedentePerinatal(),
+                            "antecedente-perinatal"));
+                }
+            }
 
             return mappings;
         } catch (Exception e) {
