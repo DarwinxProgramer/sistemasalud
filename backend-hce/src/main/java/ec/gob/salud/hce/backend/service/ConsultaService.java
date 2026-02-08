@@ -34,11 +34,43 @@ public class ConsultaService {
             // Lógica de ACTUALIZACIÓN
             Consulta consulta = consultaExistente.get();
 
-            // Actualizamos solo los campos necesarios de la consulta base
+            // Actualizamos campos básicos
             consulta.setMotivoConsulta(dto.getMotivo());
             consulta.setEnfermedadActual(dto.getEnfermedadActual());
             consulta.setDiagnosticoPrincipal(dto.getDiagnosticoTexto());
-            // Nota: Aquí podrías actualizar planes y estudios si tu lógica lo requiere
+            consulta.setTipoDiagnostico(dto.getTipoDiagnostico());
+
+            // Actualizar signos vitales
+            consulta.setPeso(dto.getPeso());
+            consulta.setTalla(dto.getTalla());
+            consulta.setTemperatura(dto.getTemperatura());
+            consulta.setFrecuenciaCardiaca(dto.getFc());
+            consulta.setFrecuenciaRespiratoria(dto.getFr());
+            consulta.setSaturacion(dto.getSpo2());
+
+            // Actualizar campos de sincronización
+            consulta.setSyncStatus("SYNCED");
+            consulta.setLastModified(java.time.LocalDateTime.now());
+
+            // Limpiar y actualizar planes terapéuticos
+            consulta.getPlanes().clear();
+            if (dto.getListaPlan() != null && !dto.getListaPlan().isEmpty() && planMapper != null) {
+                dto.getListaPlan().forEach(planDTO -> {
+                    ec.gob.salud.hce.backend.entity.PlanTerapeutico plan = planMapper.toEntity(planDTO);
+                    plan.setConsulta(consulta);
+                    consulta.getPlanes().add(plan);
+                });
+            }
+
+            // Limpiar y actualizar estudios de laboratorio
+            consulta.getEstudios().clear();
+            if (dto.getListaEstudios() != null && !dto.getListaEstudios().isEmpty() && estudioMapper != null) {
+                dto.getListaEstudios().forEach(estudioDTO -> {
+                    ec.gob.salud.hce.backend.entity.EstudioLaboratorio estudio = estudioMapper.toEntity(estudioDTO);
+                    estudio.setConsulta(consulta);
+                    consulta.getEstudios().add(estudio);
+                });
+            }
 
             Consulta guardada = consultaRepository.save(consulta);
             return ConsultaMapper.toDto(guardada, planMapper, estudioMapper);
@@ -64,10 +96,15 @@ public class ConsultaService {
         Consulta consulta = ConsultaMapper.toEntity(dto, paciente, planMapper, estudioMapper);
         consulta.setIdHistoriaClinica(historia.getIdHistoriaClinica().intValue());
 
-        // Seteamos el UUID offline para que en la próxima sincronización lo encuentre
+        // Campos de sincronización offline
         if (dto.getUuidOffline() != null) {
             consulta.setUuidOffline(dto.getUuidOffline());
         }
+
+        // Actualizar campos de sincronización
+        consulta.setSyncStatus("SYNCED");
+        consulta.setLastModified(java.time.LocalDateTime.now());
+        consulta.setOrigin(dto.getOrigin() != null ? dto.getOrigin() : "WEB");
 
         if (dto.getUsuario() != null)
             consulta.setUsuarioMedico(dto.getUsuario());

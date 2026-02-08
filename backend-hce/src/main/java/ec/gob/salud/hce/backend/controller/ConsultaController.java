@@ -16,12 +16,12 @@ public class ConsultaController {
 
     private final ConsultaService consultaService;
 
-    
-
     @PostMapping
     public ResponseEntity<?> guardar(@RequestBody ConsultaDTO dto) {
         try {
-            ConsultaDTO respuesta = consultaService.guardarConsultaCompleta(dto);
+            // CAMBIO: Usar guardarSincronizado en lugar de guardarConsultaCompleta
+            // Esto habilita la lógica de upsert por UUID offline, evitando duplicados
+            ConsultaDTO respuesta = consultaService.guardarSincronizado(dto);
             return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
         } catch (Exception e) {
             e.printStackTrace(); // Para ver el error en consola
@@ -34,10 +34,10 @@ public class ConsultaController {
     public ResponseEntity<List<ConsultaDTO>> listarPorPaciente(@PathVariable Integer idPaciente) {
         return ResponseEntity.ok(consultaService.listarPorPaciente(idPaciente));
     }
-    
+
     @GetMapping
-public ResponseEntity<List<ConsultaDTO>> listarTodas() {
-    // Debes implementar este método en tu ConsultaService
-    return ResponseEntity.ok(consultaService.listarTodas());
-}
+    public ResponseEntity<List<ConsultaDTO>> listarTodas() {
+        // Debes implementar este método en tu ConsultaService
+        return ResponseEntity.ok(consultaService.listarTodas());
+    }
 }
